@@ -1,0 +1,9 @@
+*.retry
+*.log
+.env
+*.pem
+id_ed25519
+id_rsa
+**/.ssh/
+**/.ansible/
+**/__pycache__/
