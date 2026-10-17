@@ -1,0 +1,20 @@
+---
+- name: Create devops_admin on all nodes
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Create users with home directory and sudo membership
+      ansible.builtin.user:
+        name: devops_admin
+        state: present
+        create_home: true
+        shell: /bin/bash
+        groups: sudo
+        append: true
+    
+    - name: Add SSH public key for devops_admin
+      ansible.posix.authorized_key:
+        user: devops_admin
+        state: present
+        key: "{{ lookup('file', '~/.ssh/devops_admin.pub') }}"
