@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ ansible_facts['hostname'] | e }} · Server Information</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <main>
+        <header>
+            <p class="label">Server Information</p>
+            <h1>{{ ansible_facts['hostname'] | e }}</h1>
+        </header>
+
+        <dl>
+            <div class="row">
+                <dt>IP Address</dt>
+                <dd class="mono">
+                    {{ ansible_facts['default_ipv4']['address'] | e }}
+                </dd>
+            </div>
+
+            <div class="row">
+                <dt>Operating System</dt>
+                <dd>
+                    {{ ansible_facts['distribution'] | e }}
+                    {{ ansible_facts['distribution_version'] | e }}
+                </dd>
+            </div>
+
+            <div class="row">
+                <dt>OS Family</dt>
+                <dd>{{ ansible_facts['os_family'] | e }}</dd>
+            </div>
+        </dl>
+
+        <footer>
+            Configured with Ansible.<br>
+            System information reflects the most recent playbook run.
+        </footer>
+    </main>
+</body>
+</html>

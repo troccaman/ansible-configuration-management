@@ -1,0 +1,47 @@
+---
+# tasks file for roles/webserver
+- name: Install Nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Configure default website
+  ansible.builtin.copy:
+    dest: /etc/nginx/sites-available/default
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      server {
+          listen 80 default_server;
+          listen [::]:80 default_server;
+
+          server_name _;
+          root /var/www/html;
+          index index.html index.nginx-debian.html;
+      }
+  notify: Restart Nginx
+
+- name: Copy stylesheet
+  ansible.builtin.copy:
+    src: style.css
+    dest: /var/www/html/style.css
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Render server information page
+  ansible.builtin.template:
+    src: index.html.j2
+    dest: /var/www/html/index.html
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Ensure Nginx is running and enabled
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true
