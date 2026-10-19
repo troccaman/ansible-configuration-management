@@ -1,0 +1,7 @@
+---
+- name: Configure Vehicle Service Database
+  hosts: dbservers
+  become: true
+
+  roles:
+    - postgresql

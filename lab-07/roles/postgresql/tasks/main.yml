@@ -1,0 +1,58 @@
+--- 
+- name: Install PostgreSQL packages
+  ansible.builtin.apt:
+    name: "{{ postgresql_packages }}"
+    state: present
+    update_cache: true
+  become: true
+
+- name: Ensure PostgreSQL is running and enabled
+  ansible.builtin.service:
+    name: postgresql
+    state: started
+    enabled: true
+  become: true
+
+- name: Create vehicle service database
+  community.postgresql.postgresql_db:
+    name: "{{ db_name }}"
+    state: present
+  become: true
+  become_user: postgres
+
+- name: Create application database user
+  community.postgresql.postgresql_user:
+    name: "{{ db_user }}"
+    password: "{{ db_password }}"
+    role_attr_flags: LOGIN,NOSUPERUSER,NOCREATEDB,NOCREATEROLE
+    state: present
+  become: true
+  become_user: postgres
+  no_log: true
+
+- name: Grant database connection privilege
+  community.postgresql.postgresql_privs:
+    database: "{{ db_name }}"
+    type: database
+    roles: "{{ db_user }}"
+    privs: CONNECT
+    state: present
+  become: true
+  become_user: postgres
+
+- name: Verify application database authentication
+  community.postgresql.postgresql_query:
+    login_host: 127.0.0.1
+    login_db: "{{ db_name }}"
+    login_user: "{{ db_user }}"
+    login_password: "{{ db_password }}"
+    query: "SELECT current_user;"
+  register: db_auth_result
+  no_log: true
+
+- name: Confirm successful database authentication
+  ansible.builtin.assert:
+    that:
+      - db_auth_result.query_result[0].current_user == db_user
+    success_msg: "Database authentication verified successfully."
+    fail_msg: "Database authentication verification failed."

@@ -1,0 +1,4 @@
+---
+db_name: vehicle_service
+db_user: service_app
+db_password: "{{ vault_db_password }}"
