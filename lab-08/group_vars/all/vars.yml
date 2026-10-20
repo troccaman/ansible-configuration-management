@@ -1,0 +1,37 @@
+---
+cmdb_relations:
+  - source: controlnode
+    destination: node1.local
+    service: SSH
+    port: 22
+    relationship: manages
+
+  - source: controlnode
+    destination: node2.local
+    service: SSH
+    port: 22
+    relationship: manages
+
+  - source: node1.local
+    destination: node2.local
+    service: PostgreSQL
+    port: 5432
+    relationship: connects_to
+
+cmdb_services:
+  node1.local:
+    - nginx
+
+  node2.local:
+    - postgresql
+
+cmdb_impact:
+  node1.local:
+    failure: "Web server unavailable"
+    impact: "Nginx websites become unavailable."
+    affected_service: "Nginx"
+
+  node2.local:
+    failure: "Database server unavailable"
+    impact: "PostgreSQL becomes unavailable. Applications requiring this database would lose database access."
+    affected_service: "PostgreSQL"

@@ -1,0 +1,7 @@
+# Installed Packages: {{ inventory_hostname }}
+
+{% for name, versions in ansible_facts['packages'] | dictsort %}
+{% for package in versions %}
+- **{{ name }}:** {{ package.version }}
+{% endfor %}
+{% endfor %}

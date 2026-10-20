@@ -1,0 +1,29 @@
+---
+- name: Install PostgreSQL
+  ansible.builtin.apt:
+    name: postgresql
+    state: present
+    update_cache: true
+
+- name: Ensure PostgreSQL is running and enabled
+  ansible.builtin.service:
+    name: postgresql
+    state: started
+    enabled: true
+
+- name: Configure PostgreSQL listen addresses
+  ansible.builtin.lineinfile:
+    path: /etc/postgresql/16/main/postgresql.conf
+    regexp: '^#?\s*listen_addresses\s*='
+    line: "listen_addresses = 'localhost,10.6.69.45'"
+    backup: true
+  notify: Restart PostgreSQL
+
+- name: Allow PostgreSQL connections from web server
+  ansible.builtin.lineinfile:
+    path: /etc/postgresql/16/main/pg_hba.conf
+    line: "host    all    all    10.6.69.123/32    scram-sha-256"
+    insertafter: EOF
+    state: present
+    backup: true
+  notify: Restart PostgreSQL

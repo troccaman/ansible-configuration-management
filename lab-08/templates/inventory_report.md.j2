@@ -1,0 +1,69 @@
+# CMDB Report: {{ inventory_hostname }}
+
+## Server Information
+
+- **Hostname:** {{ ansible_facts['hostname'] }}
+- **Operating System:** {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}
+- **CPU:** {{ ansible_facts['processor_vcpus'] }} vCPUs
+- **Total RAM:** {{ ansible_facts['memtotal_mb'] }} MB
+- **Free RAM:** {{ ansible_facts['memfree_mb'] }} MB
+
+## Network Information
+
+{% for ip in ansible_facts['all_ipv4_addresses'] | default([]) %}
+- **IPv4:** {{ ip }}
+{% endfor %}
+
+## Disk Information
+
+{% for name, disk in ansible_facts['devices'] | dictsort %}
+{% if not name.startswith(('loop', 'sr')) %}
+- **Disk:** {{ name }}
+- **Size:** {{ disk['size'] | default('Unknown') }}
+{% endif %}
+{% endfor %}
+
+## Filesystem Usage
+
+{% for mount in ansible_facts['mounts'] | default([]) %}
+- **Mount Point:** {{ mount['mount'] }}
+- **Filesystem:** {{ mount['fstype'] }}
+- **Total Space:** {{ (mount['size_total'] / 1073741824) | round(2) }} GB
+- **Available Space:** {{ (mount['size_available'] / 1073741824) | round(2) }} GB
+
+{% endfor %}
+
+## Uptime
+
+- **Uptime:** {{ (ansible_facts['uptime_seconds'] | int / 86400) | round(2) }} days
+
+## Installed Packages (Key Services)
+
+{% set important_packages = ['nginx', 'postgresql', 'postgresql-16', 'openssh-server'] %}
+{% for name in important_packages %}
+{% for package in ansible_facts['packages'].get(name, []) %}
+- **{{ name }}:** {{ package.version }}
+{% endfor %}
+{% endfor %}
+
+Full package inventory: `packages_{{ inventory_hostname }}.md`
+
+## Configuration Item Relationships
+
+| Source | Relationship | Destination | Service | Port |
+|---|---|---|---|---|
+{% for relation in cmdb_relations if relation.source == inventory_hostname or relation.destination == inventory_hostname %}
+| {{ relation.source }} | {{ relation.relationship }} | {{ relation.destination }} | {{ relation.service }} | {{ relation.port }} |
+{% endfor %}
+
+## Intended Server Services
+
+{% for service in cmdb_services[inventory_hostname] | default([]) %}
+- {{ service }}
+{% endfor %}
+
+## Impact Analysis
+
+- **Failure:** {{ cmdb_impact[inventory_hostname].failure }}
+- **Affected Service:** {{ cmdb_impact[inventory_hostname].affected_service }}
+- **Impact:** {{ cmdb_impact[inventory_hostname].impact }}

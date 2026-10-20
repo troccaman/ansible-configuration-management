@@ -1,0 +1,43 @@
+---
+- name: Configure PostgreSQL database server
+  hosts: dbservers
+  become: true
+  gather_facts: true
+
+  roles:
+    - postgresql
+
+- name: Collect server facts and generate CMDB reports
+  hosts: all
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Create reports directory
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/reports"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: Collect installed packages
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Generate CMDB report for each server
+      ansible.builtin.template:
+        src: "templates/inventory_report.md.j2"
+        dest: "{{ playbook_dir }}/reports/inventory_report_{{ inventory_hostname }}.md"
+        mode: "0644"
+      delegate_to: localhost
+      become: false
+
+    - name: Generate complete package inventory
+      ansible.builtin.template:
+        src: templates/packages.md.j2
+        dest: "{{ playbook_dir }}/reports/packages_{{ inventory_hostname }}.md"
+        mode: "0644"
+      delegate_to: localhost
+      become: false
