@@ -1,0 +1,8 @@
+{
+  "webservers": {
+    "hosts": ["node1.local"]
+  },
+  "dbservers": {
+    "hosts": ["node2.local"]
+  }
+}
