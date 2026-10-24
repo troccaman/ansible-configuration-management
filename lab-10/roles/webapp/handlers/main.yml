@@ -1,0 +1,10 @@
+---
+- name: Restart vehicle-web
+  ansible.builtin.systemd_service:
+    name: vehicle-web
+    state: restarted
+
+- name: Restart Nginx
+  ansible.builtin.service:
+    name: nginx
+    state: restarted

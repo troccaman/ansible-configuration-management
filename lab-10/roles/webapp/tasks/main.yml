@@ -1,0 +1,104 @@
+---
+- name: Install web application dependencies
+  ansible.builtin.apt:
+    name:
+      - python3
+      - python3-venv
+      - python3-pip
+      - nginx
+    state: present
+    update_cache: true
+
+- name: Create application directory
+  ansible.builtin.file:
+    path: /opt/vehicle-service
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create Python virtual environment
+  ansible.builtin.command:
+    cmd: python3 -m venv /opt/vehicle-service/venv
+    creates: /opt/vehicle-service/venv/bin/python
+
+- name: Install Flask and Gunicorn
+  ansible.builtin.pip:
+    name:
+      - flask
+      - gunicorn
+      - psycopg2-binary
+    virtualenv: /opt/vehicle-service/venv
+
+- name: Create Flask directories
+  ansible.builtin.file:
+    path: "/opt/vehicle-service/{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - templates
+    - static
+
+- name: Deploy Flask application
+  ansible.builtin.template:
+    src: app.py.j2
+    dest: /opt/vehicle-service/app.py
+    mode: '0644'
+  notify: Restart vehicle-web
+
+- name: Deploy HTML template
+  ansible.builtin.copy:
+    src: index.html.j2
+    dest: /opt/vehicle-service/templates/index.html
+    mode: '0644'
+  notify: Restart vehicle-web
+
+- name: Deploy CSS
+  ansible.builtin.copy:
+    src: style.css
+    dest: /opt/vehicle-service/static/style.css
+    mode: '0644'
+
+- name: Configure database credentials
+  ansible.builtin.copy:
+    dest: /etc/vehicle-service.env
+    content: "DB_PASSWORD={{ vault_db_password }}\n"
+    owner: root
+    group: www-data
+    mode: '0640'
+  no_log: true
+  notify: Restart vehicle-web
+
+- name: Install systemd service
+  ansible.builtin.template:
+    src: vehicle-web.service.j2
+    dest: /etc/systemd/system/vehicle-web.service
+    mode: '0644'
+  notify: Restart vehicle-web
+
+- name: Start and enable vehicle-web
+  ansible.builtin.systemd_service:
+    name: vehicle-web
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Configure Nginx
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/sites-available/vehicle-service
+    mode: '0644'
+  notify: Restart Nginx
+
+- name: Enable vehicle-service site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/vehicle-service
+    dest: /etc/nginx/sites-enabled/vehicle-service
+    state: link
+  notify: Restart Nginx
+
+- name: Disable default Nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Restart Nginx

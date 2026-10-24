@@ -1,0 +1,16 @@
+[Unit]
+Description=Vehicle Service Flask Application
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/vehicle-service
+Environment=HOME=/tmp
+EnvironmentFile=/etc/vehicle-service.env
+ExecStart=/opt/vehicle-service/venv/bin/gunicorn --bind 127.0.0.1:8000 app:app
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

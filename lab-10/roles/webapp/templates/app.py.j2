@@ -1,0 +1,44 @@
+import os
+from flask import Flask, render_template
+import psycopg2
+
+app = Flask(__name__)
+
+db_host = "{{ hostvars[groups['dbservers'][0]].ansible_default_ipv4.address }}"
+
+@app.route("/")
+def index():
+    try:
+        conn = psycopg2.connect(
+            host=db_host,
+            dbname="vehicle_service",
+            user="service_app",
+            password=os.environ["DB_PASSWORD"],
+            connect_timeout=3
+        )
+
+        cur = conn.cursor()
+        cur.execute("SELECT current_database(), current_user")
+        database, user = cur.fetchone()
+
+        cur.close()
+        conn.close()
+
+        return render_template(
+            "index.html",
+            db_host=db_host,
+            database=database,
+            user=user,
+            status="Connected"
+        )
+
+    except Exception:
+        app.logger.exception("Database connection failed")
+
+        return render_template(
+            "index.html",
+            db_host=db_host,
+            database="Unavailable",
+            user="Unavailable",
+            status="Disconnected"
+        ), 503

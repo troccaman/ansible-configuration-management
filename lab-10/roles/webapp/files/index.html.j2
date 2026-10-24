@@ -1,0 +1,52 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vehicle Service | System Status</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <main>
+        <header>
+            <p class="label">System Status</p>
+            <h1>Vehicle Service</h1>
+            <p class="subtitle">Application health and database connectivity</p>
+        </header>
+
+        <dl>
+            <div class="row">
+                <dt>Application</dt>
+                <dd>
+                    <span class="status">
+                        <span class="dot online"></span>
+                        Online
+                    </span>
+                </dd>
+            </div>
+
+            <div class="row">
+                <dt>Database status</dt>
+                <dd>
+                    <span class="status">
+                        <span class="dot {{ 'online' if status == 'Connected' else 'offline' }}"></span>
+                        {{ status }}
+                    </span>
+                </dd>
+            </div>
+
+            <div class="row">
+                <dt>Database</dt>
+                <dd class="mono">{{ database }}</dd>
+            </div>
+
+            <div class="row">
+                <dt>Database host</dt>
+                <dd class="mono">{{ db_host }}</dd>
+            </div>
+        </dl>
+
+    </main>
+</body>
+</html>

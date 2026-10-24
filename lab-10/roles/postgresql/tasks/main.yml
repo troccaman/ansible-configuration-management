@@ -1,0 +1,55 @@
+---
+- name: Install PostgreSQL dependencies
+  ansible.builtin.apt:
+    name:
+      - postgresql
+      - python3-psycopg2
+      - acl
+    state: present
+    update_cache: true
+
+- name: Ensure PostgreSQL is running
+  ansible.builtin.service:
+    name: postgresql
+    state: started
+    enabled: true
+
+- name: Create application database
+  community.postgresql.postgresql_db:
+    name: vehicle_service
+    state: present
+  become_user: postgres
+
+- name: Create database user
+  community.postgresql.postgresql_user:
+    name: service_app
+    password: "{{ vault_db_password }}"
+    role_attr_flags: LOGIN
+    state: present
+  become_user: postgres
+
+- name: Grant database privileges
+  community.postgresql.postgresql_privs:
+    database: vehicle_service
+    roles: service_app
+    type: database
+    privs: CONNECT
+    state: present
+  become_user: postgres
+
+- name: Configure PostgreSQL network access
+  ansible.builtin.lineinfile:
+    path: /etc/postgresql/16/main/postgresql.conf
+    regexp: '^\s*#?\s*listen_addresses\s*='
+    line: "listen_addresses = '{{ ansible_default_ipv4.address }}'"
+  notify: Restart PostgreSQL
+
+- name: Allow webserver to connect
+  community.postgresql.postgresql_pg_hba:
+    dest: /etc/postgresql/16/main/pg_hba.conf
+    contype: host
+    users: service_app
+    databases: vehicle_service
+    source: "{{ hostvars['node1.local'].ansible_default_ipv4.address }}/32"
+    method: scram-sha-256
+  notify: Restart PostgreSQL

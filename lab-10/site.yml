@@ -1,0 +1,17 @@
+---
+- name: Gather webserver facts
+  hosts: webservers
+  gather_facts: true
+  tasks: []
+
+- name: Configure PostgreSQL database
+  hosts: dbservers
+  become: true
+  roles:
+    - postgresql
+
+- name: Configure web application
+  hosts: webservers
+  become: true
+  roles:
+    - webapp
