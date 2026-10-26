@@ -1,0 +1,15 @@
+---
+- name: Install and configure Nginx
+  hosts: webservers
+  become: true
+
+  tasks:
+    - name: Install Nginx
+      ansible.builtin.package:
+        name: nginx
+        state: present
+
+    - name: Create Nginx configuration file
+      ansible.builtin.copy:
+        content: "server { listen 80; }"
+        dest: /etc/nginx/sites-available/default
