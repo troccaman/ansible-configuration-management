@@ -40,7 +40,7 @@ The Vault password file is stored separately at `~/.ansible/vault_pass`, outside
 
 ## Task 1 – Ansible Vault
 
-Created an encrypted variable file containing the required database password (`sommar2024`).
+Created an encrypted variable file containing the application database password as vault_db_password.
 
 ```bash
 ansible-vault create group_vars/all/vault.yml
@@ -196,15 +196,7 @@ This confirms successful database provisioning, authentication, and idempotency 
 - `service_app` has restricted administrative privileges.
 - Authentication is verified without exposing credentials in Ansible output.
 
-**Security verification:**
-
-```bash
-grep -Rn --exclude=vault.yml 'sommar2024' . || echo "No plaintext password found"
-git check-ignore -v group_vars/all/vault.yml
-ls -l ~/.ansible/vault_pass
-```
-
-No plaintext database password was found in the other lab files, and the encrypted Vault file was not ignored by Git.
+A plaintext database password was removed from the documentation. The credential was then rotated through Ansible Vault and applied using the playbook. Authentication with the updated credential was verified successfully.
 
 ## Design Decisions
 
