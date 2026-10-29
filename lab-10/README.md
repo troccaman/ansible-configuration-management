@@ -4,15 +4,21 @@
 
 Automate the deployment of a multi-tier application using Ansible, Flask, Gunicorn, Nginx and PostgreSQL.
 
-The lab demonstrates role-based configuration, dynamic database connectivity, systemd service management, Ansible Vault, idempotency and recovery from service interruptions.
+The lab demonstrates reusable roles, fact-based configuration, service management, Ansible Vault, idempotency and recovery from service interruptions.
 
 ## Environment
 
 - **Control Node:** Ubuntu Server 24.04
-- **Web Server:** `node1.local` (Ubuntu Server 24.04) – Flask, Gunicorn and Nginx
-- **Database Server:** `node2.local` (Ubuntu Server 24.04) – PostgreSQL 16
+- **Web Server:** `node1.local` – Flask, Gunicorn and Nginx
+- **Database Server:** `node2.local` – PostgreSQL 16
+- **Managed Node OS:** Ubuntu Server 24.04
 - **Automation Tool:** Ansible Core 2.16.3
-- **Authentication:** SSH key-based authentication and Ansible Vault
+- **Authentication:** SSH keys, sudo and Ansible Vault
+- **Required Collection:** `community.postgresql`
+
+All commands below are run from `lab-10` on the control node unless otherwise stated.
+
+The managed nodes must be reachable by hostname, with SSH key authentication and sudo access configured for `troccaman`. The control node requires the `community.postgresql` collection and access to the Vault password file.
 
 ## Project Structure
 
@@ -27,7 +33,7 @@ lab-10/
 ├── screenshots/
 │   ├── 01-application-online.png
 │   ├── 02-application-stopped-502.png
-│   ├── 03-database-disconnected-503.png
+│   └── 03-database-disconnected-503.png
 ├── roles/
 │   ├── postgresql/
 │   │   ├── handlers/main.yml
@@ -62,13 +68,17 @@ node2.local
 ```ini
 [defaults]
 inventory = inventory.ini
+vault_password_file = ~/.ansible/vault_pass
 remote_user = troccaman
-ask_become_pass = true
 forks = 5
-vault_password_file = ~/.ansible/lab10_vault_pass
+
+[privilege_escalation]
+become_ask_pass = true
 ```
 
-The local Vault password file is kept outside the Git repository.
+Ansible loads this configuration when commands are run from `lab-10`. The `become_ask_pass` setting prompts for the sudo password, while `become: true` in the playbook enables privilege escalation.
+
+The Vault password file is stored outside the Git repository with restricted permissions. It decrypts `group_vars/all/vault.yml`, which contains the `vault_db_password` variable.
 
 ## Task 2 – Multi-Tier Playbook
 
@@ -94,35 +104,38 @@ The local Vault password file is kept outside the Git repository.
     - webapp
 ```
 
-The database is configured before the web application. Ansible facts provide the node addresses without hardcoding them in the Flask template.
+The first play collects webserver facts needed to configure database access. The database is then configured before the web application.
+
+Ansible facts supply the node addresses, avoiding fixed IP addresses in the Flask application template.
 
 ## Task 3 – PostgreSQL Configuration
 
-The `postgresql` role installs and starts PostgreSQL on `node2.local`, creates the `vehicle_service` database and `service_app` login, and grants database connection privileges.
+The `postgresql` role:
 
-Remote database access is restricted to the web node in `pg_hba.conf`, with SCRAM-SHA-256 authentication. The database password is stored in an encrypted **Ansible Vault** file.
+- Installs PostgreSQL, `python3-psycopg2` and `acl`.
+- Ensures that PostgreSQL is running and enabled at boot.
+- Creates the `vehicle_service` database and `service_app` login.
+- Grants the application user database connection privileges.
+- Configures PostgreSQL to listen on the database node's IPv4 address.
+- Adds a `pg_hba.conf` rule allowing `service_app` to connect to `vehicle_service` from the web node's IPv4 address using SCRAM-SHA-256.
+
+The database password is stored in an encrypted Ansible Vault file. A handler restarts PostgreSQL when its network configuration changes.
 
 ## Task 4 – Flask, Gunicorn and Nginx
 
-The `webapp` role installs the Python dependencies, deploys the Flask application and its HTML/CSS files, and configures Nginx as a reverse proxy.
+The `webapp` role installs the Python dependencies, creates a virtual environment, deploys the application and configures Nginx as a reverse proxy.
 
-**Application flow:**
+Requests reach Nginx on port 80. Nginx forwards them to Gunicorn on `127.0.0.1:8000`, which runs Flask. Flask connects to PostgreSQL on `node2.local`, port 5432.
 
-```text
-Browser → Nginx :80 → Gunicorn :8000 → Flask (node1.local)
-                                            |
-                                            v
-                                    PostgreSQL :5432
-                                       (node2.local)
-```
-
-Flask verifies access to the remote database with:
+Flask verifies database connectivity with:
 
 ```sql
 SELECT current_database(), current_user;
 ```
 
-**`vehicle-web.service.j2` – service configuration:**
+The HTML template is copied unchanged so that Flask can render it at request time. The Python application is rendered by Ansible to configure the database host.
+
+**`vehicle-web.service.j2` – service configuration excerpt:**
 
 ```ini
 [Service]
@@ -135,15 +148,37 @@ ExecStart=/opt/vehicle-service/venv/bin/gunicorn --bind 127.0.0.1:8000 app:app
 Restart=on-failure
 ```
 
-Ansible manages both services using systemd. Handlers restart them when configuration changes.
+The application runs as `www-data`. Its database password is deployed to `/etc/vehicle-service.env`, owned by `root:www-data` with mode `0640`. The task writing this file uses `no_log: true`.
+
+Handlers restart Gunicorn and Nginx when relevant configuration changes. Separate service tasks maintain their running state.
+
+**Nginx service task:**
+
+```yaml
+- name: Ensure Nginx is running and enabled
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true
+```
+
+This task starts Nginx if it has stopped, even when no configuration change triggers the restart handler.
 
 ## Task 5 – Deployment and Verification
+
+Check the playbook syntax:
+
+```bash
+ansible-playbook -i inventory.ini site.yml --syntax-check
+```
 
 Deploy the stack:
 
 ```bash
-ansible-playbook site.yml -K
+ansible-playbook -i inventory.ini site.yml
 ```
+
+The local configuration supplies the Vault password file and prompts for the sudo password.
 
 Verify the web application:
 
@@ -151,42 +186,90 @@ Verify the web application:
 curl -i http://node1.local
 ```
 
-**Verified result:** HTTP `200 OK`; the page reports `Application: Online`, `Database status: Connected`, `vehicle_service`, and database host `10.6.69.45`.
+**Verified result:** HTTP `200 OK`. The page reports `Application: Online`, `Database status: Connected`, the database `vehicle_service` and its host address.
 
 ![Application online with PostgreSQL connected](screenshots/01-application-online.png)
 
-**Idempotency:** A subsequent playbook run made no changes:
+For a compact HTTP check:
+
+```bash
+curl --max-time 5 -sS -o /dev/null -w 'HTTP status: %{http_code}\n' http://node1.local
+```
+
+**Result:**
 
 ```text
-node1.local : ok=16 changed=0 unreachable=0 failed=0
+HTTP status: 200
+```
+
+**Idempotency:** A repeated run with the Nginx service task included required no changes:
+
+```text
+node1.local : ok=17 changed=0 unreachable=0 failed=0
 node2.local : ok=8  changed=0 unreachable=0 failed=0
 ```
 
 ## Task 6 – Service Failure and Recovery
 
-**Application interruption:** Stopped `vehicle-web` on Node 1. Nginx returned HTTP `502 Bad Gateway`, as the upstream application was unavailable.
+### Application Failure and Recovery
+
+Stopped `vehicle-web` on node1. Nginx returned HTTP `502 Bad Gateway` because the upstream application was unavailable.
 
 ![Nginx returns 502 when Gunicorn is stopped](screenshots/02-application-stopped-502.png)
 
-Running `ansible-playbook site.yml -K` restored the service, and the application became accessible again.
+Running the playbook restored the application service, and the application became accessible again.
 
-**Database interruption:** Stopped PostgreSQL on Node 2. Flask remained reachable but returned HTTP `503 Service Unavailable`, with the database marked `Disconnected`.
+### Database Failure and Recovery
+
+Stopped PostgreSQL on node2. Flask remained reachable but returned HTTP `503 Service Unavailable`, with the database marked `Disconnected`.
 
 ![Flask reports a disconnected PostgreSQL database](screenshots/03-database-disconnected-503.png)
 
-Running the Ansible playbook restored PostgreSQL, and the application returned HTTP `200 OK` with the database status `Connected`.
+Running the playbook restored PostgreSQL. The application returned HTTP `200 OK` with the database status `Connected`.
 
-Both recovery scenarios demonstrated how Ansible detects stopped services and restores the desired state when the playbook is executed.
+### Nginx Failure and Recovery
 
+Stopped Nginx on the web node:
+
+```bash
+ansible webservers -i inventory.ini -b -m ansible.builtin.service -a "name=nginx state=stopped"
+```
+
+Checked the HTTP response:
+
+```bash
+curl --max-time 5 -sS -o /dev/null -w 'HTTP status: %{http_code}\n' http://node1.local
+```
+
+The connection failed. Curl reported `000`, indicating that no HTTP response was received.
+
+Re-ran the playbook:
+
+```bash
+ansible-playbook -i inventory.ini site.yml
+```
+
+The playbook restored Nginx:
+
+```text
+node1.local : ok=17 changed=1 unreachable=0 failed=0
+node2.local : ok=8  changed=0 unreachable=0 failed=0
+```
+
+Repeated the HTTP check:
+
+```text
+HTTP status: 200
+```
+
+This confirms that the service task restores a stopped Nginx instance without requiring a configuration change.
+
+All three scenarios demonstrate recovery when the playbook is executed. Ansible is not continuously monitoring these services.
 
 ## Conclusion
 
-Successfully deployed and configured a multi-tier application using Ansible, Flask, Gunicorn, Nginx and PostgreSQL across two Ubuntu servers.
+Successfully deployed a multi-tier application across two Ubuntu servers using separate roles for PostgreSQL and the web application.
 
-Ansible automated the installation, configuration and startup of both the web application and database services. By using separate roles, the deployment was structured and easier to maintain. Ansible facts and Jinja2 were used to automatically configure the database server address in the Flask application, reducing the need for manual configuration.
+Ansible Facts and Jinja2 configure database connectivity, Vault protects credentials in the repository, and service tasks and handlers maintain the required service state.
 
-The application successfully connected to PostgreSQL and retrieved database information using SQL. Database credentials were secured with Ansible Vault, while systemd and handlers were used to manage services and configuration changes.
-
-Idempotency was verified by running the playbook multiple times without unnecessary changes (`changed=0`). Service recovery was also tested by stopping Gunicorn and PostgreSQL separately, verifying the resulting errors, and restoring normal operation through Ansible.
-
-Overall, the lab demonstrated how Configuration Management can automate a complete application deployment, manage dependencies between servers, and restore services after failures. It also provided practical experience in troubleshooting and maintaining a multi-tier environment.
+Repeated execution verified idempotency. Separate interruption tests for Gunicorn, PostgreSQL and Nginx demonstrated the effect of each service failure and confirmed recovery through the playbook.
