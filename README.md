@@ -12,7 +12,7 @@ The project progresses from basic Ansible commands to a multi-tier application w
 - **node2.local:** PostgreSQL 16.
 - **Access:** SSH keys and sudo using `troccaman`.
 
-These application roles describe the final deployment in Lab 10. Earlier labs use the nodes for separate exercises.
+These server roles describe the final deployment in Lab 10. Earlier labs use the nodes for separate exercises.
 
 ## Prerequisites
 
@@ -26,18 +26,20 @@ These application roles describe the final deployment in Lab 10. Earlier labs us
 ansible-galaxy collection install community.postgresql ansible.posix
 ```
 
-Adapt the SSH username and inventory to your environment if needed. The project was tested with Ansible Core 2.16.3; Lab 7 used community.postgresql 3.3.0.
+Adapt the SSH username and inventory to your environment if needed. The project was tested with Ansible Core 2.16.3; Lab 7 used community.postgresql 3.3.0. Other collection versions may require compatibility checks.
 
 ## Run the Main Application
 
-Clone the repository using an account with access, then enter Lab 10:
+For a new checkout, clone the repository using an account with access:
 
 ```bash
 git clone https://github.com/troccaman/ansible-configuration-management.git
 cd ansible-configuration-management/lab-10
 ```
 
-Run the commands below from `lab-10` so Ansible loads its local configuration.
+If the repository is already cloned, enter its existing `lab-10` directory instead.
+
+Run the following commands from `lab-10` so Ansible loads its local configuration.
 
 ### Prepare Vault Access
 
@@ -68,7 +70,7 @@ Enter the sudo password when prompted. Ansible configures PostgreSQL on node2 an
 curl --max-time 5 -sS -o /dev/null -w 'HTTP status: %{http_code}\n' http://node1.local
 ```
 
-Expected result: `HTTP status: 200`. Open `http://node1.local` to see the database status `Connected`.
+Expected result: `HTTP status: 200`. Open `http://node1.local` in a browser to see the database status `Connected`.
 
 Run the playbook again to check idempotency:
 
@@ -106,7 +108,7 @@ Each lab has its own README. Run labs individually according to their instructio
 
 - Labs 4–6 require `~/.ssh/devops_admin.pub`, prepared in Lab 4.
 - Lab 8 contains fixed IP addresses that must be adapted if the network changes.
-- Lab 9 demonstrates inventory generation from local JSON; Lab 10 uses a static inventory.
+- Lab 9 generates inventory from local JSON; Lab 10 uses a static inventory.
 
 ## Architecture and Security
 
@@ -114,9 +116,11 @@ The control node manages both servers over SSH. Nginx receives HTTP requests on 
 
 Separate `webapp` and `postgresql` roles manage the application and database. Ansible Facts provide node IP addresses, while Jinja2 renders configuration files.
 
-Database passwords are Vault-encrypted in Git. Vault password files and private SSH keys remain outside the repository. The application runs as `www-data`, with runtime credentials stored in a protected environment file.
+Database passwords in the current configuration are Vault-encrypted. An earlier plaintext credential in Lab 7 documentation was removed and rotated. Vault password files and private SSH keys remain outside the repository.
 
-The architecture rationale is documented in `ARCHITECTURE.md` as part of Lab 12. This is a lab environment; HTTPS and high availability are not implemented.
+The application runs as `www-data`, with runtime credentials stored in a protected environment file.
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the design rationale. This is a lab environment; HTTPS and high availability are not implemented.
 
 ## Verification and Recovery
 
