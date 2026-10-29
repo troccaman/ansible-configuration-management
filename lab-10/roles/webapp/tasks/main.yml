@@ -102,3 +102,9 @@
     path: /etc/nginx/sites-enabled/default
     state: absent
   notify: Restart Nginx
+
+- name: Ensure Nginx is running and enabled
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true
